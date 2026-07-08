@@ -1,0 +1,8 @@
+numpy
+sentence-transformers
+fastapi
+uvicorn
+websockets
+hnswlib
+faiss-cpu
+matplotlib
