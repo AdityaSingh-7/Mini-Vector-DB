@@ -1,4 +1,5 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
+import React from 'react'
 
 interface GraphNode {
   id: number
@@ -31,174 +32,192 @@ function GraphCanvas({
   visitedNodes,
   expandedNodes,
   resultNodes,
-  activeLayer,
-  searchPath,
 }: Props) {
-  const svgRef = useRef<SVGSVGElement>(null)
+  const isSearching = visitedNodes.size > 0 || resultNodes.size > 0
 
-  // Compute node positions mapped to SVG coordinates
+  // Layout:
+  // Top section (y: 30-180): Layer 2 nodes + their edges
+  // Middle section (y: 200-350): Layer 1 nodes + their edges
+  // Bottom section (y: 380-630): Layer 0 only nodes (the cloud)
+  // Nodes with level>0 appear ONLY in their highest layer section
+
   const nodePositions = useMemo(() => {
-    const positions = new Map<number, { x: number; y: number; layer: number }>()
+    const positions = new Map<number, { x: number; y: number }>()
     if (!nodes.length) return positions
 
-    const padding = 60
-    const width = 900
-    const height = 600
+    const width = 1000
+    const paddingX = 80
 
-    // Separate layers vertically
-    const layerHeight = (height - padding * 2) / (maxLevel + 1)
+    // Separate nodes by their level
+    const layer0Nodes = nodes.filter(n => n.level === 0)
+    const layer1Nodes = nodes.filter(n => n.level === 1)
+    const layer2Nodes = nodes.filter(n => n.level >= 2)
 
-    nodes.forEach(node => {
-      // x from PCA position [0,1] → pixel
-      const x = padding + node.position[0] * (width - padding * 2)
-      // y from layer (higher layers at top)
-      const baseY = padding + (maxLevel - node.level) * layerHeight
-      // Add some jitter based on PCA y-position within the layer band
-      const jitter = node.position[1] * layerHeight * 0.7
-      const y = baseY + jitter
+    // Layer 2: top, spread horizontally
+    layer2Nodes.forEach(node => {
+      const x = paddingX + node.position[0] * (width - paddingX * 2)
+      const y = 60 + node.position[1] * 100
+      positions.set(node.id, { x, y })
+    })
 
-      positions.set(node.id, { x, y, layer: node.level })
+    // Layer 1: middle band, spread out
+    layer1Nodes.forEach(node => {
+      const x = paddingX + node.position[0] * (width - paddingX * 2)
+      const y = 220 + node.position[1] * 120
+      positions.set(node.id, { x, y })
+    })
+
+    // Layer 0: bottom cloud, most space
+    layer0Nodes.forEach(node => {
+      const x = paddingX + node.position[0] * (width - paddingX * 2)
+      const y = 400 + node.position[1] * 220
+      positions.set(node.id, { x, y })
     })
 
     return positions
-  }, [nodes, maxLevel])
+  }, [nodes])
 
-  // Get node color based on animation state
-  const getNodeColor = (nodeId: number) => {
-    if (resultNodes.has(nodeId)) return 'var(--accent-green)'
-    if (expandedNodes.has(nodeId)) return 'var(--accent-blue)'
-    if (visitedNodes.has(nodeId)) return 'var(--accent-yellow)'
-    return '#4a4f6b'
-  }
+  // Edges: show layer 1+ edges always (few of them), layer 0 edges only during search
+  const upperEdges = useMemo(() => edges.filter(e => e.layer > 0), [edges])
+  const layer0Edges = useMemo(() => edges.filter(e => e.layer === 0), [edges])
 
-  const getNodeRadius = (nodeId: number) => {
-    if (resultNodes.has(nodeId)) return 7
-    if (expandedNodes.has(nodeId)) return 5
-    if (visitedNodes.has(nodeId)) return 4.5
-    return 3
-  }
-
-  // Filter edges to only show layer 0 by default, or active layer during animation
-  const visibleEdges = useMemo(() => {
-    return edges.filter(e => {
-      if (activeLayer !== null) return e.layer <= activeLayer
-      return e.layer === 0
+  // Vertical connectors: from layer 2 → layer 1 nodes, and layer 1 → layer 0 area
+  // But since layer 1+ nodes don't appear in layer 0, we draw a dotted drop line
+  // from a high-layer node down to where it "connects" into layer 0
+  const dropLines = useMemo(() => {
+    const lines: { id: number; x: number; fromY: number; toY: number }[] = []
+    nodes.filter(n => n.level >= 1).forEach(node => {
+      const pos = nodePositions.get(node.id)
+      if (!pos) return
+      // Drop to the top of layer 0 area
+      lines.push({ id: node.id, x: pos.x, fromY: pos.y, toY: 390 })
     })
-  }, [edges, activeLayer])
+    return lines
+  }, [nodes, nodePositions])
 
   return (
-    <svg ref={svgRef} viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet">
-      {/* Background gradient */}
-      <defs>
-        <radialGradient id="bg-gradient">
-          <stop offset="0%" stopColor="#1a1d2e" />
-          <stop offset="100%" stopColor="#0f1117" />
-        </radialGradient>
-      </defs>
-      <rect width="900" height="600" fill="url(#bg-gradient)" />
+    <svg viewBox="0 0 1000 650" preserveAspectRatio="xMidYMid meet">
+      <rect width="1000" height="650" fill="var(--bg-dark)" />
 
       {/* Layer separator lines */}
-      {Array.from({ length: maxLevel + 1 }, (_, i) => {
-        const y = 60 + (maxLevel - i) / (maxLevel + 1) * 480
+      <line x1="50" y1="190" x2="950" y2="190" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="4 8" opacity="0.4" />
+      <line x1="50" y1="370" x2="950" y2="370" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="4 8" opacity="0.4" />
+
+      {/* Layer labels */}
+      <text x="16" y="105" fontSize="10" fill="var(--text-secondary)" opacity="0.5" fontWeight="600">LAYER 2</text>
+      <text x="16" y="280" fontSize="10" fill="var(--text-secondary)" opacity="0.5" fontWeight="600">LAYER 1</text>
+      <text x="16" y="480" fontSize="10" fill="var(--text-secondary)" opacity="0.5" fontWeight="600">LAYER 0</text>
+
+      {/* ─── DROP LINES: vertical dotted connectors from upper nodes to layer 0 ─── */}
+      {dropLines.map(line => {
+        const isVisited = visitedNodes.has(line.id)
         return (
-          <line
-            key={`layer-line-${i}`}
-            x1="40"
-            y1={y}
-            x2="860"
-            y2={y}
-            stroke="var(--border)"
-            strokeWidth="0.5"
-            strokeDasharray="4 4"
-            opacity="0.3"
+          <line key={`drop-${line.id}`}
+            x1={line.x} y1={line.fromY + 8} x2={line.x} y2={line.toY}
+            stroke={isVisited ? 'var(--accent-yellow)' : '#252a40'}
+            strokeWidth={isVisited ? 1.5 : 0.4}
+            strokeDasharray="2 4"
+            opacity={isVisited ? 0.7 : (isSearching ? 0.05 : 0.15)}
           />
         )
       })}
 
-      {/* Edges */}
-      {visibleEdges.map((edge, i) => {
+      {/* ─── UPPER LAYER EDGES (only between nodes in SAME visual band) ─── */}
+      {upperEdges.map((edge, i) => {
         const source = nodePositions.get(edge.source)
         const target = nodePositions.get(edge.target)
         if (!source || !target) return null
 
-        const isHighlighted =
-          visitedNodes.has(edge.source) && visitedNodes.has(edge.target)
+        // Only draw if both nodes are in the SAME layer band visually
+        const sourceNode = nodes.find(n => n.id === edge.source)
+        const targetNode = nodes.find(n => n.id === edge.target)
+        if (!sourceNode || !targetNode) return null
+        if (sourceNode.level !== targetNode.level) return null  // skip cross-band edges
+
+        const bothVisited = visitedNodes.has(edge.source) && visitedNodes.has(edge.target)
 
         return (
-          <line
-            key={`edge-${i}`}
-            x1={source.x}
-            y1={source.y}
-            x2={target.x}
-            y2={target.y}
-            stroke={
-              isHighlighted
-                ? 'var(--accent-yellow)'
-                : edge.layer > 0
-                ? 'var(--accent-purple)'
-                : 'var(--border)'
-            }
-            strokeWidth={isHighlighted ? 1.5 : edge.layer > 0 ? 0.8 : 0.4}
-            opacity={isHighlighted ? 0.8 : edge.layer > 0 ? 0.4 : 0.2}
+          <line key={`ue-${i}`}
+            x1={source.x} y1={source.y} x2={target.x} y2={target.y}
+            stroke={bothVisited ? '#ffdd44' : '#1e2845'}
+            strokeWidth={bothVisited ? 2 : 0.4}
+            opacity={bothVisited ? 0.85 : (isSearching ? 0.06 : 0.2)}
           />
         )
       })}
 
-      {/* Search path animation */}
-      {searchPath.length >= 2 && (() => {
-        const pathPoints: string[] = []
-        for (let i = 0; i < searchPath.length; i += 2) {
-          const from = nodePositions.get(searchPath[i])
-          const to = nodePositions.get(searchPath[i + 1])
-          if (from && to) {
-            pathPoints.push(`M${from.x},${from.y} L${to.x},${to.y}`)
-          }
-        }
+      {/* ─── LAYER 0 EDGES: only show visited during search ─── */}
+      {isSearching && layer0Edges.map((edge, i) => {
+        const source = nodePositions.get(edge.source)
+        const target = nodePositions.get(edge.target)
+        if (!source || !target) return null
+
+        const bothVisited = visitedNodes.has(edge.source) && visitedNodes.has(edge.target)
+        if (!bothVisited) return null
+
         return (
-          <path
-            d={pathPoints.join(' ')}
-            className="search-path"
+          <line key={`le-${i}`}
+            x1={source.x} y1={source.y} x2={target.x} y2={target.y}
+            stroke="#ffdd44" strokeWidth="1.5" opacity="0.6"
           />
         )
-      })()}
+      })}
 
-      {/* Nodes */}
+      {/* ─── NODES ─── */}
       {nodes.map(node => {
         const pos = nodePositions.get(node.id)
         if (!pos) return null
 
+        const isResult = resultNodes.has(node.id)
+        const isVisited = visitedNodes.has(node.id)
+
+        // Size by layer
+        let radius = node.level === 0 ? 3 : (node.level === 1 ? 5 : 7)
+        let fill = node.level === 0 ? 'var(--node-default)' : (node.level === 1 ? '#6366f1' : 'var(--accent-purple)')
+        let opacity = isSearching ? 0.12 : (node.level === 0 ? 0.45 : 0.7)
+
+        if (isResult) {
+          fill = 'var(--accent-green)'
+          radius = 10
+          opacity = 1
+        } else if (isVisited) {
+          fill = 'var(--accent-blue)'
+          radius = Math.max(radius, 5)
+          opacity = 0.9
+        }
+
         return (
-          <circle
-            key={`node-${node.id}`}
-            cx={pos.x}
-            cy={pos.y}
-            r={getNodeRadius(node.id)}
-            fill={getNodeColor(node.id)}
-            opacity={
-              activeLayer !== null && node.level < activeLayer ? 0.2 : 0.9
-            }
+          <circle key={`n-${node.id}`}
+            cx={pos.x} cy={pos.y} r={radius}
+            fill={fill} opacity={opacity}
           >
             <title>{node.text || `Node ${node.id}`}</title>
           </circle>
         )
       })}
 
-      {/* Result labels */}
-      {Array.from(resultNodes).map(nodeId => {
+      {/* ─── RESULT LABELS ─── */}
+      {Array.from(resultNodes).slice(0, 3).map((nodeId, i) => {
         const pos = nodePositions.get(nodeId)
         const node = nodes.find(n => n.id === nodeId)
         if (!pos || !node) return null
+
         return (
-          <text
-            key={`label-${nodeId}`}
-            x={pos.x + 10}
-            y={pos.y + 4}
-            fontSize="9"
-            fill="var(--accent-green)"
-            opacity="0.8"
-          >
-            {node.text.slice(0, 40)}...
-          </text>
+          <g key={`label-${nodeId}`}>
+            <rect
+              x={pos.x + 14} y={pos.y - 8 + i * 20}
+              width={175} height={15}
+              rx="3" fill="rgba(61, 214, 140, 0.12)"
+              stroke="var(--accent-green)" strokeWidth="0.5"
+            />
+            <text
+              x={pos.x + 18} y={pos.y + 3 + i * 20}
+              fontSize="8.5" fontWeight="500"
+              fill="var(--accent-green)"
+            >
+              {node.text.slice(0, 36)}...
+            </text>
+          </g>
         )
       })}
     </svg>

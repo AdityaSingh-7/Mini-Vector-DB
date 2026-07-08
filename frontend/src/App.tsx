@@ -189,16 +189,14 @@ function App() {
       {/* Header */}
       <div className="header">
         <h1>Mini Vector DB</h1>
-        <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-          HNSW Visualizer
-        </span>
+        <span className="subtitle">HNSW Visualizer</span>
         <div className="stats">
           <span>{nodes.length} vectors</span>
           <span>{maxLevel + 1} layers</span>
           <span>M=16</span>
           {nodesVisited > 0 && (
-            <span style={{ color: 'var(--accent-yellow)' }}>
-              {nodesVisited} nodes visited
+            <span className="active-stat">
+              {nodesVisited} / {nodes.length} visited
             </span>
           )}
         </div>
@@ -217,25 +215,40 @@ function App() {
           searchPath={searchPath}
         />
         {/* Layer labels */}
-        {Array.from({ length: maxLevel + 1 }, (_, i) => maxLevel - i).map(layer => (
-          <div
-            key={layer}
-            className="layer-label"
-            style={{
-              top: `${((maxLevel - layer) / (maxLevel + 1)) * 100 + 5}%`,
-              color: activeLayer === layer ? 'var(--accent-blue)' : undefined,
-            }}
-          >
-            Layer {layer}
+        {/* Legend */}
+        <div className="legend">
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--node-default)', width: '6px', height: '6px' }} />
+            <span>Layer 0</span>
           </div>
-        ))}
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: '#6366f1', width: '9px', height: '9px' }} />
+            <span>Layer 1</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--accent-purple)', width: '12px', height: '12px' }} />
+            <span>Layer 2</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--accent-blue)' }} />
+            <span>Visited</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--accent-green)' }} />
+            <span>Result</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--accent-yellow)', width: '20px', height: '3px', borderRadius: '2px' }} />
+            <span>Path</span>
+          </div>
+        </div>
       </div>
 
       {/* Side Panel */}
       <div className="side-panel">
         {/* Search */}
         <div className="panel-section">
-          <h3>🔍 Semantic Search</h3>
+          <h3>Search</h3>
           <div className="input-group">
             <input
               type="text"
@@ -246,14 +259,27 @@ function App() {
               disabled={isSearching}
             />
             <button className="btn" onClick={handleSearch} disabled={isSearching}>
-              {isSearching ? '...' : 'Go'}
+              {isSearching ? '...' : 'Search'}
             </button>
           </div>
         </div>
 
+        {/* Animation Status */}
+        {(isSearching || isAdding) && (
+          <div className="panel-section">
+            <div className="anim-status">
+              <div className="pulse-dot" />
+              <span>
+                {isSearching ? 'Traversing graph' : 'Inserting node'}
+                {activeLayer !== null && ` — Layer ${activeLayer}`}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Add Text */}
         <div className="panel-section">
-          <h3>📝 Add to Index</h3>
+          <h3>Add to Index</h3>
           <div className="input-group" style={{ flexDirection: 'column' }}>
             <textarea
               placeholder="Paste any text to add it to the vector index..."
@@ -262,7 +288,7 @@ function App() {
               disabled={isAdding}
             />
             <button
-              className="btn btn-green"
+              className="btn btn-add"
               onClick={handleAdd}
               disabled={isAdding || !addText.trim()}
               style={{ alignSelf: 'flex-end' }}
@@ -274,7 +300,7 @@ function App() {
 
         {/* Speed Control */}
         <div className="panel-section">
-          <h3>⚡ Animation Speed</h3>
+          <h3>Animation Speed</h3>
           <div className="speed-control">
             <span>Fast</span>
             <input
@@ -300,19 +326,6 @@ function App() {
                   <div className="distance">Distance: {r.distance.toFixed(4)}</div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* Animation Status */}
-        {(isSearching || isAdding) && (
-          <div className="panel-section">
-            <div className="anim-info">
-              <div className="dot" style={{ background: 'var(--accent-yellow)' }} />
-              <span>
-                {isSearching ? 'Searching...' : 'Inserting...'}
-                {activeLayer !== null && ` (Layer ${activeLayer})`}
-              </span>
             </div>
           </div>
         )}
