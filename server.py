@@ -20,7 +20,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from hnsw_instrumented import InstrumentedHNSW
-from embedder import Embedder
 
 # ──────────────────────────────────────────────────────────────────────
 # Initialize
@@ -71,9 +70,14 @@ def load_or_create_index():
 @app.on_event("startup")
 async def startup():
     global embedder
-    embedder = Embedder()
+    try:
+        from embedder import Embedder
+        embedder = Embedder()
+        print(f"Embedder ready (dim={embedder.dim})")
+    except Exception as e:
+        embedder = None
+        print(f"Embedder not available (search-only mode): {e}")
     load_or_create_index()
-    print(f"Embedder ready (dim={embedder.dim})")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -93,7 +97,15 @@ class AddRequest(BaseModel):
 @app.post("/search")
 async def search(req: SearchRequest):
     """Semantic search — returns results and algorithm events."""
-    query_vec = embedder.embed(req.query)
+    if embedder is None:
+        # Search-only mode: use a random vector from the index as query
+        # (demo mode — shows the traversal animation without needing the model)
+        import random as rnd
+        random_id = rnd.randint(0, len(index) - 1)
+        query_vec = index.vectors[random_id]
+    else:
+        query_vec = embedder.embed(req.query)
+
     results, events = index.search_with_events(query_vec, k=req.k, ef_search=req.ef_search)
 
     return {
@@ -114,6 +126,9 @@ async def search(req: SearchRequest):
 async def add_text(req: AddRequest):
     """Add text to the index — returns insert events."""
     global positions
+
+    if embedder is None:
+        return {"error": "Embedder not available. Running in search-only mode (demo deployment)."}
 
     vec = embedder.embed(req.text)
     events = index.insert_with_events(vec)
