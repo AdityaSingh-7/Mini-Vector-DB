@@ -25,7 +25,10 @@ interface AnimEvent {
   [key: string]: any
 }
 
-const API = 'http://localhost:8080'
+// In production (deployed): API is served from the same origin → use ''
+// In development (local): API is at localhost:8080 → use 'http://localhost:8080'
+// To switch: change this line, then run `npx vite build` in frontend/
+const API = ''
 
 function App() {
   const [nodes, setNodes] = useState<GraphNode[]>([])

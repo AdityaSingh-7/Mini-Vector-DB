@@ -41,13 +41,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Build the demo index (embeds 155 texts, builds HNSW graph)
+# Build the demo index (if saved_index/ doesn't exist already)
 python prepare_demo.py
 
 # Build the frontend
 cd frontend && npm install && npx vite build && cd ..
 
-# Run the server
+# Run
 python server.py
 # → Open http://localhost:8080
 ```
