@@ -40,7 +40,7 @@ INDEX_PATH = os.path.join(os.path.dirname(__file__), "saved_index")
 POSITIONS_PATH = os.path.join(os.path.dirname(__file__), "positions.npy")
 TEXTS_PATH = os.path.join(os.path.dirname(__file__), "texts.json")
 
-embedder: Embedder = None
+embedder = None
 index: InstrumentedHNSW = None
 texts: list[str] = []          # texts[node_id] = original text
 positions: np.ndarray = None   # 2D UMAP positions for visualization
