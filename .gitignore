@@ -7,6 +7,13 @@ __pycache__/
 # Model (too large for git — document download in README)
 models/
 
+# Large dataset files (download separately)
+sift-128-euclidean.hdf5
+siftsmall/
+sift/
+fashion_mnist/
+*.tar.gz
+
 # Frontend
 frontend/node_modules/
 frontend/package-lock.json
